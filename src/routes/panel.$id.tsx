@@ -1,12 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckSquare, Copy, Download, ExternalLink, FileUp, ImagePlus, Inbox, ListChecks, Loader2, MessageSquareText, Plus, RefreshCw, Rocket, Save, Trash2, Type, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckSquare, Copy, Download, ExternalLink, FileUp, ImagePlus, Inbox, ListChecks, Loader2, Lock, MessageSquareText, Plus, RefreshCw, Rocket, Save, Trash2, Type, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { BACKGROUNDS, DEFAULT_THEME, FONTS, OTHER_LABEL, PALETTES, makeSlug, newComponent, normalizeForm, type ComponentType, type FormComponent, type FormTheme } from "@/lib/forms";
 import { downloadCsv, formToCsv, normalizeKey, takePendingImport, type ImportResult } from "@/lib/form-import";
 import { resizeImage } from "@/lib/image";
+import { downloadResponsesPdf } from "@/lib/pdf";
 import { FormRenderer } from "@/components/forms/FormRenderer";
 import { ImportDialog, type ImportMode } from "@/components/forms/ImportDialog";
 import { AgencyGate } from "@/components/brand/AgencyGate";
@@ -21,11 +22,11 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { publicLink } from "./nexus.index";
+import { publicLink } from "./panel.index";
 
 type Tab = "content" | "style" | "responses";
 
-export const Route = createFileRoute("/nexus/$id")({
+export const Route = createFileRoute("/panel/$id")({
   validateSearch: (s: Record<string, unknown>): { tab?: Tab } => (s["tab"] === "responses" || s["tab"] === "style" ? { tab: s["tab"] } : {}),
   head: () => ({ meta: [{ title: "Editor · Alto Perfil" }, { name: "robots", content: "noindex,nofollow" }, { name: "description", content: "Editor de formularios." }, { property: "og:title", content: "Editor · Alto Perfil" }, { property: "og:description", content: "Editor de formularios." }] }),
   component: () => <AgencyGate><Editor /></AgencyGate>,
@@ -111,7 +112,7 @@ function Editor() {
         if (error) throw error;
         setSlug(s); setShareOpen(true);
         loaded.current = true;
-        navigate({ to: "/nexus/$id", params: { id: data.id }, replace: true });
+        navigate({ to: "/panel/$id", params: { id: data.id }, replace: true });
       } else {
         const { error } = await supabase.from("forms").update(payload).eq("id", id);
         if (error) throw error;
@@ -128,7 +129,7 @@ function Editor() {
   return (
     <div className="admin-bg flex h-screen flex-col">
       <header className="glass z-20 flex items-center gap-3 border-x-0 border-t-0 px-4 py-3">
-        <Button asChild variant="ghost" size="icon"><Link to="/nexus"><ArrowLeft className="h-4 w-4" /></Link></Button>
+        <Button asChild variant="ghost" size="icon"><Link to="/panel"><ArrowLeft className="h-4 w-4" /></Link></Button>
         <div className="min-w-0 flex-1">
           <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-primary">{isNew ? "Nuevo formulario" : "Editando"}</div>
           <div className="truncate font-display text-sm">{draft.title}</div>
@@ -145,7 +146,7 @@ function Editor() {
         </Button>
       </header>
 
-      <Tabs value={tab ?? "content"} onValueChange={(v) => navigate({ to: "/nexus/$id", params: { id }, search: v === "content" ? {} : { tab: v as Tab }, replace: true })} className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      <Tabs value={tab ?? "content"} onValueChange={(v) => navigate({ to: "/panel/$id", params: { id }, search: v === "content" ? {} : { tab: v as Tab }, replace: true })} className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <aside className="glass flex min-h-0 flex-col border-y-0 border-l-0 lg:w-[440px]">
           <TabsList className="m-3 grid grid-cols-3">
             <TabsTrigger value="content">Contenido</TabsTrigger>
@@ -261,7 +262,7 @@ function Editor() {
             </TabsContent>
 
             <TabsContent value="responses" className="mt-0">
-              {!isNew && <Responses formId={id} components={draft.components} />}
+              {!isNew && <Responses formId={id} form={draft} />}
             </TabsContent>
           </div>
         </aside>
@@ -359,7 +360,8 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
   return <label className="flex items-center justify-between pt-1 text-xs text-muted-foreground">{label}<Switch checked={checked} onCheckedChange={onChange} /></label>;
 }
 
-function Responses({ formId, components }: { formId: string; components: FormComponent[] }) {
+function Responses({ formId, form }: { formId: string; form: Draft }) {
+  const components = form.components;
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["responses", formId],
@@ -372,14 +374,20 @@ function Responses({ formId, components }: { formId: string; components: FormCom
   const questions = components.filter((c) => c.type !== "text");
   return (
     <div className="space-y-4">
-      <div className="font-mono text-xs text-muted-foreground">{data.length} respuesta{data.length > 1 ? "s" : ""}</div>
+      <div className="flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-500">
+        <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>Formulario <b>respondido</b>: el cliente ya no puede modificarlo. Si eliminás la respuesta, el formulario vuelve a quedar abierto.</span>
+      </div>
+      {data.length > 1 && <div className="font-mono text-xs text-muted-foreground">{data.length} respuestas</div>}
       {data.map((r) => {
         const a = (r.answers ?? {}) as Record<string, string | string[]>;
         return (
           <div key={r.id} className="rounded-xl border border-border bg-card/60 p-4">
             <div className="mb-3 flex items-center justify-between">
-              <span className="font-mono text-[11px] text-primary">{new Date(r.created_at).toLocaleString("es")}</span>
-              <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={async () => { if (!confirm("¿Eliminar respuesta?")) return; await supabase.from("responses").delete().eq("id", r.id); qc.invalidateQueries({ queryKey: ["responses", formId] }); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+              <span className="flex-1 font-mono text-[11px] text-primary">{new Date(r.created_at).toLocaleString("es")}</span>
+              <Button size="sm" variant="secondary" className="mr-1 h-7 text-xs" title="Descargar PDF con las respuestas"
+                onClick={() => downloadResponsesPdf(form, a, r.created_at)}><Download className="h-3.5 w-3.5" /> PDF</Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={async () => { if (!confirm("¿Eliminar esta respuesta? El formulario vuelve a quedar abierto para que el cliente lo complete de nuevo.")) return; await supabase.from("responses").delete().eq("id", r.id); qc.invalidateQueries({ queryKey: ["responses", formId] }); }}><Trash2 className="h-3.5 w-3.5" /></Button>
             </div>
             <div className="space-y-3">
               {questions.map((q) => {

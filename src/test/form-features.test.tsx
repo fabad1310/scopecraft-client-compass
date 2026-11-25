@@ -98,3 +98,20 @@ describe("brand footer contrast", async () => {
     expect(isLightColor("#003399")).toBe(false);
   });
 });
+
+describe("responses PDF", () => {
+  it("lays out every answer across pages with page numbers", async () => {
+    const { buildResponsesPdf } = await import("@/lib/pdf");
+    const components: FormComponent[] = [
+      { id: "t", type: "text", title: "Contexto", body: "x" },
+      ...Array.from({ length: 30 }, (_, i): FormComponent => ({ id: `q${i}`, type: i % 2 ? "choice" : "question", title: `¿Pregunta número ${i + 1}?`, options: ["Sí", "No"] })),
+    ];
+    const answers: Record<string, unknown> = { q0: "Respuesta con acentos: ñandú, acción, ¿qué?", q1: ["Sí", "Otro: explicación"] };
+    const doc = await buildResponsesPdf({ title: "Validación", client_name: "Acme", components }, answers, "2026-11-25T12:00:00Z");
+    expect(doc.getNumberOfPages()).toBeGreaterThan(1);
+    const raw = doc.output();
+    expect(raw).toContain("Validaci");
+    expect(raw).toContain("Sin respuesta");
+    expect(raw).toContain(`gina 1 de ${doc.getNumberOfPages()}`);
+  });
+});

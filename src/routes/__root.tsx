@@ -82,9 +82,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Nexus Scope" },
+      { title: "Alto Perfil Survey Manager" },
       { name: "description", content: "Cuestionarios para validar alcances de proyectos." },
-      { property: "og:title", content: "Nexus Scope" },
+      { property: "og:title", content: "Alto Perfil Survey Manager" },
       { property: "og:description", content: "Cuestionarios para validar alcances de proyectos." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

@@ -1,27 +1,33 @@
 import { useMemo, useState, type CSSProperties, type MouseEvent } from "react";
-import { Check, Loader2, Sparkles } from "lucide-react";
+import { Check, Download, Loader2, Lock, Send, Sparkles } from "lucide-react";
 import { FormBackground } from "./FormBackground";
 import { BrandFooter } from "@/components/brand/BrandFooter";
 import { LinkifiedText } from "./LinkifiedText";
 import { ReferenceImage } from "./ReferenceImage";
 import { OTHER_LABEL, OTHER_OPTION, getFont, isAnswered, missingRequired, resolveAnswers, resolvePalette, type FormRecord } from "@/lib/forms";
+import { downloadResponsesPdf } from "@/lib/pdf";
 import { sfx } from "@/lib/sound";
 
 type Answers = Record<string, string | string[]>;
 
+export interface SubmittedResponse { answers: Answers; created_at: string }
+
 interface Props {
   form: Pick<FormRecord, "title" | "subtitle" | "logo_url" | "logo_size" | "theme" | "components">;
   preview?: boolean;
+  /** Already answered: show the locked "Respondido" screen instead of the form. */
+  submitted?: SubmittedResponse | null | undefined;
   onSubmit?: (answers: Answers) => Promise<void>;
 }
 
-export function FormRenderer({ form, preview, onSubmit }: Props) {
+export function FormRenderer({ form, preview, submitted, onSubmit }: Props) {
   const palette = resolvePalette(form.theme);
   const font = getFont(form.theme.font);
   const [answers, setAnswers] = useState<Answers>({});
   const [otherText, setOtherText] = useState<Record<string, string>>({});
   const [sending, setSending] = useState(false);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<SubmittedResponse | null>(submitted ?? null);
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const play = (k: keyof typeof sfx) => { if (form.theme.sound) sfx[k](); };
 
@@ -56,16 +62,24 @@ export function FormRenderer({ form, preview, onSubmit }: Props) {
     });
   };
 
-  const submit = async () => {
+  /** Step 1: validate, then ask for confirmation. */
+  const requestSubmit = () => {
     const emptyOther = form.components.filter((c) => Array.isArray(answers[c.id]) && (answers[c.id] as string[]).includes(OTHER_OPTION) && !(otherText[c.id] ?? "").trim());
     if (emptyOther.length) { setError(`Explicá tu respuesta en "Otro": ${emptyOther.map((m) => m.title).join(", ")}`); play("deselect"); return; }
     const missing = missingRequired(form.components, resolved);
     if (missing.length) { setError(`Faltan respuestas obligatorias: ${missing.map((m) => m.title).join(", ")}`); play("deselect"); return; }
     setError(null);
-    if (preview || !onSubmit) { play("submit"); setDone(true); return; }
+    play("select");
+    setConfirming(true);
+  };
+
+  /** Step 2: confirmed — send and lock the form. */
+  const submit = async () => {
+    const finished = { answers: resolved, created_at: new Date().toISOString() };
+    if (preview || !onSubmit) { setConfirming(false); play("submit"); setDone(finished); return; }
     setSending(true);
-    try { await onSubmit(resolved); play("submit"); setDone(true); }
-    catch { setError("No pudimos enviar el formulario. Intentá nuevamente."); }
+    try { await onSubmit(resolved); setConfirming(false); play("submit"); setDone(finished); window.scrollTo({ top: 0 }); }
+    catch (e) { setConfirming(false); setError(e instanceof Error && e.message ? e.message : "No pudimos enviar el formulario. Intentá nuevamente."); }
     finally { setSending(false); }
   };
 
@@ -74,7 +88,7 @@ export function FormRenderer({ form, preview, onSubmit }: Props) {
   return (
     <div className="f-root relative min-h-full overflow-hidden" style={style}>
       <FormBackground theme={form.theme} palette={palette} />
-      {!preview && (
+      {!preview && !done && (
         <div className="fixed left-0 top-0 z-50 h-1 w-full" style={{ background: "transparent" }}>
           <div className="f-progress h-full transition-all duration-700" style={{ width: `${progress * 100}%` }} />
         </div>
@@ -85,8 +99,19 @@ export function FormRenderer({ form, preview, onSubmit }: Props) {
             <div className="f-index mb-8 flex h-20 w-20 items-center justify-center rounded-full" style={{ animation: "pulse-glow 2s infinite" }}>
               <Check className="h-10 w-10" />
             </div>
-            <h2 className="f-title text-3xl font-bold md:text-4xl">Transmisión completada</h2>
-            <p className="f-muted f-body mt-4 max-w-md">Tus respuestas fueron enviadas con éxito. ¡Gracias por tu tiempo!</p>
+            <span className="f-index f-body mb-5 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-[0.3em]">
+              <Lock className="h-3.5 w-3.5" /> Respondido
+            </span>
+            <h2 className="f-title text-3xl font-bold md:text-4xl">{form.title || "Formulario"}</h2>
+            <p className="f-muted f-body mt-4 max-w-md">
+              Recibimos tus respuestas el {new Date(done.created_at).toLocaleString("es-AR", { dateStyle: "long", timeStyle: "short" })}. ¡Gracias por tu tiempo!
+              <br />Este formulario ya fue enviado y no admite cambios.
+            </p>
+            <button type="button" className="f-btn mt-10 inline-flex items-center gap-3"
+              onClick={() => { play("select"); void downloadResponsesPdf(form, done.answers, done.created_at); }}>
+              <Download className="h-4 w-4" /> Descargar PDF
+            </button>
+            {preview && <button type="button" className="f-muted f-body mt-6 text-xs underline" onClick={() => setDone(null)}>Vista previa — no se guardan respuestas. Volver al formulario</button>}
           </div>
         ) : (
           <>
@@ -166,8 +191,8 @@ export function FormRenderer({ form, preview, onSubmit }: Props) {
 
             <div className="mt-14 flex flex-col items-center gap-4">
               {error && <p className="f-body text-sm" style={{ color: palette.primary }}>{error}</p>}
-              <button type="button" className="f-btn inline-flex items-center gap-3" disabled={sending} onClick={submit}>
-                {sending && <Loader2 className="h-4 w-4 animate-spin" />} Enviar formulario
+              <button type="button" className="f-btn inline-flex items-center gap-3" disabled={sending} onClick={requestSubmit}>
+                <Send className="h-4 w-4" /> Enviar formulario
               </button>
               {preview && <p className="f-muted f-body text-xs">Vista previa — no se guardan respuestas</p>}
             </div>
@@ -175,6 +200,24 @@ export function FormRenderer({ form, preview, onSubmit }: Props) {
         )}
       </div>
       <BrandFooter background={palette.bg} />
+
+      {confirming && (
+        <div role="dialog" aria-modal="true" aria-labelledby="f-confirm-title"
+          className={`fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-5 backdrop-blur-sm`}
+          style={{ animation: "fade-in .2s ease-out" }} onClick={() => !sending && setConfirming(false)}>
+          <div className="f-card anim-rise w-full max-w-md rounded-3xl p-8 text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="f-index mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full"><Send className="h-6 w-6" /></div>
+            <h3 id="f-confirm-title" className="text-xl font-semibold">¿Enviar tus respuestas?</h3>
+            <p className="f-muted f-body mt-3 text-sm">Una vez enviado, el formulario queda <b>respondido</b> y ya no vas a poder modificarlo. Revisá que todo esté bien antes de confirmar.</p>
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <button type="button" className="f-chip f-body justify-center px-6" disabled={sending} onClick={() => setConfirming(false)}>Revisar</button>
+              <button type="button" className="f-btn inline-flex items-center justify-center gap-2" disabled={sending} onClick={submit}>
+                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Sí, enviar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -32,7 +32,7 @@ function Home() {
     const { ok } = await verifyAgencyPin({ data: { pin } });
     if (!ok) return "PIN incorrecto.";
     grantAgencyAccess();
-    await navigate({ to: "/nexus" });
+    await navigate({ to: "/panel" });
     return null;
   };
   const client = async (pin: string) => {

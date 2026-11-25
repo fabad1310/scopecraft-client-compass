@@ -29,5 +29,5 @@ use the editor.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
 
-- Forms admin lives at the unlisted /nexus route with no login (user accepted low data sensitivity); forms/responses tables have open anon RLS by design.
+- Forms admin ("Alto Perfil Survey Manager") lives at /panel behind a 4-digit agency PIN verified server-side (src/lib/access.ts); it is a screen lock, not real auth (user accepted low data sensitivity); forms/responses tables have open anon RLS by design.
 - Per-form theming flows through inline --f-* CSS variables consumed by .f-* classes in styles.css, so client forms can use any palette without touching app tokens.

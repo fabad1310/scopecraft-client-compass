@@ -11,8 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as FSlugRouteImport } from './routes/f.$slug'
-import { Route as NexusIndexRouteImport } from './routes/nexus.index'
-import { Route as NexusIdRouteImport } from './routes/nexus.$id'
+import { Route as PanelIndexRouteImport } from './routes/panel.index'
+import { Route as PanelIdRouteImport } from './routes/panel.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -24,49 +24,49 @@ const FSlugRoute = FSlugRouteImport.update({
   path: '/f/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const NexusIndexRoute = NexusIndexRouteImport.update({
-  id: '/nexus/',
-  path: '/nexus/',
+const PanelIndexRoute = PanelIndexRouteImport.update({
+  id: '/panel/',
+  path: '/panel/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const NexusIdRoute = NexusIdRouteImport.update({
-  id: '/nexus/$id',
-  path: '/nexus/$id',
+const PanelIdRoute = PanelIdRouteImport.update({
+  id: '/panel/$id',
+  path: '/panel/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/f/$slug': typeof FSlugRoute
-  '/nexus/$id': typeof NexusIdRoute
-  '/nexus/': typeof NexusIndexRoute
+  '/panel/$id': typeof PanelIdRoute
+  '/panel/': typeof PanelIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/f/$slug': typeof FSlugRoute
-  '/nexus/$id': typeof NexusIdRoute
-  '/nexus': typeof NexusIndexRoute
+  '/panel/$id': typeof PanelIdRoute
+  '/panel': typeof PanelIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/f/$slug': typeof FSlugRoute
-  '/nexus/$id': typeof NexusIdRoute
-  '/nexus/': typeof NexusIndexRoute
+  '/panel/$id': typeof PanelIdRoute
+  '/panel/': typeof PanelIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/f/$slug' | '/nexus/$id' | '/nexus/'
+  fullPaths: '/' | '/f/$slug' | '/panel/$id' | '/panel/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/f/$slug' | '/nexus/$id' | '/nexus'
-  id: '__root__' | '/' | '/f/$slug' | '/nexus/$id' | '/nexus/'
+  to: '/' | '/f/$slug' | '/panel/$id' | '/panel'
+  id: '__root__' | '/' | '/f/$slug' | '/panel/$id' | '/panel/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   FSlugRoute: typeof FSlugRoute
-  NexusIdRoute: typeof NexusIdRoute
-  NexusIndexRoute: typeof NexusIndexRoute
+  PanelIdRoute: typeof PanelIdRoute
+  PanelIndexRoute: typeof PanelIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -85,18 +85,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/nexus/': {
-      id: '/nexus/'
-      path: '/nexus'
-      fullPath: '/nexus/'
-      preLoaderRoute: typeof NexusIndexRouteImport
+    '/panel/': {
+      id: '/panel/'
+      path: '/panel'
+      fullPath: '/panel/'
+      preLoaderRoute: typeof PanelIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/nexus/$id': {
-      id: '/nexus/$id'
-      path: '/nexus/$id'
-      fullPath: '/nexus/$id'
-      preLoaderRoute: typeof NexusIdRouteImport
+    '/panel/$id': {
+      id: '/panel/$id'
+      path: '/panel/$id'
+      fullPath: '/panel/$id'
+      preLoaderRoute: typeof PanelIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -105,8 +105,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   FSlugRoute: FSlugRoute,
-  NexusIdRoute: NexusIdRoute,
-  NexusIndexRoute: NexusIndexRoute,
+  PanelIdRoute: PanelIdRoute,
+  PanelIndexRoute: PanelIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
