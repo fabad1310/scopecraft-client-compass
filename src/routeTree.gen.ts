@@ -10,33 +10,63 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as FSlugRouteImport } from './routes/f.$slug'
+import { Route as NexusIndexRouteImport } from './routes/nexus.index'
+import { Route as NexusIdRouteImport } from './routes/nexus.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FSlugRoute = FSlugRouteImport.update({
+  id: '/f/$slug',
+  path: '/f/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NexusIndexRoute = NexusIndexRouteImport.update({
+  id: '/nexus/',
+  path: '/nexus/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NexusIdRoute = NexusIdRouteImport.update({
+  id: '/nexus/$id',
+  path: '/nexus/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/f/$slug': typeof FSlugRoute
+  '/nexus/$id': typeof NexusIdRoute
+  '/nexus/': typeof NexusIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/f/$slug': typeof FSlugRoute
+  '/nexus/$id': typeof NexusIdRoute
+  '/nexus': typeof NexusIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/f/$slug': typeof FSlugRoute
+  '/nexus/$id': typeof NexusIdRoute
+  '/nexus/': typeof NexusIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/f/$slug' | '/nexus/$id' | '/nexus/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/f/$slug' | '/nexus/$id' | '/nexus'
+  id: '__root__' | '/' | '/f/$slug' | '/nexus/$id' | '/nexus/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  FSlugRoute: typeof FSlugRoute
+  NexusIdRoute: typeof NexusIdRoute
+  NexusIndexRoute: typeof NexusIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +78,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/f/$slug': {
+      id: '/f/$slug'
+      path: '/f/$slug'
+      fullPath: '/f/$slug'
+      preLoaderRoute: typeof FSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/nexus/': {
+      id: '/nexus/'
+      path: '/nexus'
+      fullPath: '/nexus/'
+      preLoaderRoute: typeof NexusIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/nexus/$id': {
+      id: '/nexus/$id'
+      path: '/nexus/$id'
+      fullPath: '/nexus/$id'
+      preLoaderRoute: typeof NexusIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  FSlugRoute: FSlugRoute,
+  NexusIdRoute: NexusIdRoute,
+  NexusIndexRoute: NexusIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
