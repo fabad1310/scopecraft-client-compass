@@ -1,17 +1,20 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, ExternalLink, FileUp, Inbox, Pencil, Plus, Trash2, Zap } from "lucide-react";
+import { Copy, ExternalLink, FileUp, Inbox, KeyRound, LogOut, Pencil, Plus, Trash2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeForm, resolvePalette } from "@/lib/forms";
 import { setPendingImport } from "@/lib/form-import";
+import { revokeAgencyAccess } from "@/lib/access";
 import { Button } from "@/components/ui/button";
 import { ImportDialog } from "@/components/forms/ImportDialog";
+import { AgencyGate } from "@/components/brand/AgencyGate";
+import { BrandFooter } from "@/components/brand/BrandFooter";
 
 export const Route = createFileRoute("/nexus/")({
-  head: () => ({ meta: [{ title: "Panel · Nexus Scope" }, { name: "robots", content: "noindex,nofollow" }, { name: "description", content: "Panel de control privado." }, { property: "og:title", content: "Panel · Nexus Scope" }, { property: "og:description", content: "Panel de control privado." }] }),
-  component: AdminList,
+  head: () => ({ meta: [{ title: "Panel · Alto Perfil" }, { name: "robots", content: "noindex,nofollow" }, { name: "description", content: "Panel de control privado." }, { property: "og:title", content: "Panel · Alto Perfil" }, { property: "og:description", content: "Panel de control privado." }] }),
+  component: () => <AgencyGate><AdminList /></AgencyGate>,
 });
 
 export function publicLink(slug: string) {
@@ -58,6 +61,10 @@ function AdminList() {
             <p className="mt-3 text-muted-foreground">Creá cuestionarios para validar alcances y compartí el link con cada cliente.</p>
           </div>
           <div className="flex flex-wrap gap-3">
+            <Button size="lg" variant="ghost" className="rounded-full" title="Cerrar sesión de agencia"
+              onClick={() => { revokeAgencyAccess(); navigate({ to: "/" }); }}>
+              <LogOut className="h-4 w-4" /> Salir
+            </Button>
             <Button size="lg" variant="secondary" className="rounded-full px-6" onClick={() => setImportOpen(true)}>
               <FileUp className="h-4 w-4" /> Importar
             </Button>
@@ -89,6 +96,12 @@ function AdminList() {
                     <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs text-primary"><Inbox className="h-3 w-3" /> {f.count}</span>
                   </div>
                   <h3 className="mb-1 line-clamp-2 font-display text-lg font-semibold">{f.title}</h3>
+                  {f.theme.pin && (
+                    <button className="mb-2 inline-flex items-center gap-1.5 rounded-md bg-secondary px-2 py-0.5 font-mono text-xs text-muted-foreground transition hover:text-primary" title="Copiar PIN del cliente"
+                      onClick={() => { navigator.clipboard.writeText(f.theme.pin ?? ""); toast.success("PIN copiado"); }}>
+                      <KeyRound className="h-3 w-3" /> PIN {f.theme.pin}
+                    </button>
+                  )}
                   <p className="mb-5 text-xs text-muted-foreground">{f.components.length} bloques · editado {new Date(f.updated_at).toLocaleDateString("es")}</p>
                   <div className="flex flex-wrap gap-2">
                     <Button asChild size="sm" variant="secondary"><Link to="/nexus/$id" params={{ id: f.id }}><Pencil className="h-3.5 w-3.5" /> Editar</Link></Button>
@@ -103,6 +116,7 @@ function AdminList() {
           </div>
         )}
       </div>
+      <BrandFooter background="#0b0f1a" />
     </div>
   );
 }

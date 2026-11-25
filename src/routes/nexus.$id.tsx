@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckSquare, Copy, Download, ExternalLink, FileUp, ImagePlus, Inbox, ListChecks, Loader2, MessageSquareText, Plus, Rocket, Save, Trash2, Type, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckSquare, Copy, Download, ExternalLink, FileUp, ImagePlus, Inbox, ListChecks, Loader2, MessageSquareText, Plus, RefreshCw, Rocket, Save, Trash2, Type, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { BACKGROUNDS, DEFAULT_THEME, FONTS, OTHER_LABEL, PALETTES, makeSlug, newComponent, normalizeForm, type ComponentType, type FormComponent, type FormTheme } from "@/lib/forms";
@@ -9,6 +9,8 @@ import { downloadCsv, formToCsv, normalizeKey, takePendingImport, type ImportRes
 import { resizeImage } from "@/lib/image";
 import { FormRenderer } from "@/components/forms/FormRenderer";
 import { ImportDialog, type ImportMode } from "@/components/forms/ImportDialog";
+import { AgencyGate } from "@/components/brand/AgencyGate";
+import { generateUniquePin, isPinAvailable } from "@/lib/access";
 import { CustomPaletteEditor } from "@/components/forms/editor/CustomPaletteEditor";
 import { ReferenceImageField } from "@/components/forms/editor/ReferenceImageField";
 import { Button } from "@/components/ui/button";
@@ -25,8 +27,8 @@ type Tab = "content" | "style" | "responses";
 
 export const Route = createFileRoute("/nexus/$id")({
   validateSearch: (s: Record<string, unknown>): { tab?: Tab } => (s["tab"] === "responses" || s["tab"] === "style" ? { tab: s["tab"] } : {}),
-  head: () => ({ meta: [{ title: "Editor · Nexus Scope" }, { name: "robots", content: "noindex,nofollow" }, { name: "description", content: "Editor de formularios." }, { property: "og:title", content: "Editor · Nexus Scope" }, { property: "og:description", content: "Editor de formularios." }] }),
-  component: Editor,
+  head: () => ({ meta: [{ title: "Editor · Alto Perfil" }, { name: "robots", content: "noindex,nofollow" }, { name: "description", content: "Editor de formularios." }, { property: "og:title", content: "Editor · Alto Perfil" }, { property: "og:description", content: "Editor de formularios." }] }),
+  component: () => <AgencyGate><Editor /></AgencyGate>,
 });
 
 interface Draft {
@@ -92,8 +94,17 @@ function Editor() {
 
   const save = async () => {
     setSaving(true);
-    const payload = { ...draft, theme: draft.theme as never, components: draft.components as never, updated_at: new Date().toISOString() };
     try {
+      // Every questionnaire gets a unique 4-digit client PIN.
+      let pin = draft.theme.pin;
+      if (!pin) pin = await generateUniquePin(isNew ? undefined : id);
+      else if (!(await isPinAvailable(pin, isNew ? undefined : id))) {
+        toast.error(`El PIN ${pin} no está disponible (ya lo usa otro cuestionario o es reservado). Elegí otro.`);
+        return;
+      }
+      const theme = { ...draft.theme, pin };
+      setTheme({ pin });
+      const payload = { ...draft, theme: theme as never, components: draft.components as never, updated_at: new Date().toISOString() };
       if (isNew) {
         const s = makeSlug();
         const { data, error } = await supabase.from("forms").insert({ ...payload, slug: s }).select("id").single();
@@ -144,6 +155,16 @@ function Editor() {
           <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-10">
             <TabsContent value="content" className="mt-0 space-y-5">
               <Field label="Cliente (solo visible para vos)"><Input value={draft.client_name} onChange={(e) => set("client_name", e.target.value)} placeholder="Ej: Acme Corp" /></Field>
+              <Field label="PIN de acceso del cliente (4 dígitos)">
+                <div className="flex gap-2">
+                  <Input value={draft.theme.pin ?? ""} inputMode="numeric" maxLength={4} className="font-mono tracking-[0.4em]"
+                    placeholder="Se genera al guardar" onChange={(e) => setTheme({ pin: e.target.value.replace(/\D/g, "").slice(0, 4) || undefined })} />
+                  <Button variant="secondary" size="icon" title="Generar otro PIN"
+                    onClick={async () => { try { setTheme({ pin: await generateUniquePin(isNew ? undefined : id) }); } catch { toast.error("No se pudo generar un PIN"); } }}>
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
+              </Field>
               <Field label="Título"><Input value={draft.title} onChange={(e) => set("title", e.target.value)} /></Field>
               <Field label="Subtítulo"><Textarea rows={2} value={draft.subtitle} onChange={(e) => set("subtitle", e.target.value)} /></Field>
 
@@ -261,9 +282,18 @@ function Editor() {
           <DialogHeader>
             <div className="glow mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-primary/15 text-primary"><Check className="h-7 w-7" /></div>
             <DialogTitle className="text-center font-display">¡Formulario creado!</DialogTitle>
-            <DialogDescription className="text-center">Compartí este link privado con tu cliente.</DialogDescription>
+            <DialogDescription className="text-center">Compartí el link directo con tu cliente, o el PIN para que ingrese desde la página de inicio.</DialogDescription>
           </DialogHeader>
           <div className="flex gap-2"><Input readOnly value={link} className="font-mono text-xs" onFocus={(e) => e.target.select()} /><Button onClick={copy}><Copy className="h-4 w-4" /></Button></div>
+          {draft.theme.pin && (
+            <div className="flex items-center justify-between rounded-xl border border-border p-3">
+              <span className="text-sm text-muted-foreground">PIN del cliente</span>
+              <button className="flex items-center gap-2 font-mono text-2xl tracking-[0.4em] text-primary" title="Copiar PIN"
+                onClick={() => { navigator.clipboard.writeText(draft.theme.pin ?? ""); toast.success("PIN copiado"); }}>
+                {draft.theme.pin}<Copy className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

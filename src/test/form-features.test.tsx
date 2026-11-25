@@ -88,3 +88,13 @@ describe("links in text", () => {
     expect(container.querySelector("a")).toBeNull();
   });
 });
+
+describe("brand footer contrast", async () => {
+  const { isLightColor } = await import("@/lib/color");
+  it("uses the black logo on light backgrounds and white on dark ones", () => {
+    expect(isLightColor("#ffffff")).toBe(true);
+    expect(isLightColor("#c3f5ff")).toBe(true);
+    expect(isLightColor("#05070d")).toBe(false);
+    expect(isLightColor("#003399")).toBe(false);
+  });
+});

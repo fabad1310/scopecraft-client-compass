@@ -33,6 +33,8 @@ export interface FormTheme {
   palette: string;
   /** Colors used when palette === CUSTOM_PALETTE_ID. */
   customPalette?: PaletteColors;
+  /** 4-digit client access PIN (unique per form). Lives in the theme JSON to avoid a schema change. */
+  pin?: string | undefined;
   font: string;
   background: "grid" | "aurora" | "particles" | "waves";
   sound: boolean;

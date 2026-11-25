@@ -1,6 +1,7 @@
 import { useMemo, useState, type CSSProperties, type MouseEvent } from "react";
 import { Check, Loader2, Sparkles } from "lucide-react";
 import { FormBackground } from "./FormBackground";
+import { BrandFooter } from "@/components/brand/BrandFooter";
 import { LinkifiedText } from "./LinkifiedText";
 import { ReferenceImage } from "./ReferenceImage";
 import { OTHER_LABEL, OTHER_OPTION, getFont, isAnswered, missingRequired, resolveAnswers, resolvePalette, type FormRecord } from "@/lib/forms";
@@ -173,6 +174,7 @@ export function FormRenderer({ form, preview, onSubmit }: Props) {
           </>
         )}
       </div>
+      <BrandFooter background={palette.bg} />
     </div>
   );
 }
