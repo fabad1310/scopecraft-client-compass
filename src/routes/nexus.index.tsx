@@ -1,10 +1,13 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, ExternalLink, Inbox, Pencil, Plus, Trash2, Zap } from "lucide-react";
+import { Copy, ExternalLink, FileUp, Inbox, Pencil, Plus, Trash2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { getPalette, normalizeForm } from "@/lib/forms";
+import { normalizeForm, resolvePalette } from "@/lib/forms";
+import { setPendingImport } from "@/lib/form-import";
 import { Button } from "@/components/ui/button";
+import { ImportDialog } from "@/components/forms/ImportDialog";
 
 export const Route = createFileRoute("/nexus/")({
   head: () => ({ meta: [{ title: "Panel · Nexus Scope" }, { name: "robots", content: "noindex,nofollow" }, { name: "description", content: "Panel de control privado." }, { property: "og:title", content: "Panel · Nexus Scope" }, { property: "og:description", content: "Panel de control privado." }] }),
@@ -17,6 +20,8 @@ export function publicLink(slug: string) {
 
 function AdminList() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [importOpen, setImportOpen] = useState(false);
   const { data, isLoading } = useQuery({
     queryKey: ["forms"],
     queryFn: async () => {
@@ -52,10 +57,17 @@ function AdminList() {
             </h1>
             <p className="mt-3 text-muted-foreground">Creá cuestionarios para validar alcances y compartí el link con cada cliente.</p>
           </div>
-          <Button asChild size="lg" className="glow rounded-full px-6 font-semibold">
-            <Link to="/nexus/$id" params={{ id: "new" }}><Plus className="h-4 w-4" /> Nuevo formulario</Link>
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button size="lg" variant="secondary" className="rounded-full px-6" onClick={() => setImportOpen(true)}>
+              <FileUp className="h-4 w-4" /> Importar
+            </Button>
+            <Button asChild size="lg" className="glow rounded-full px-6 font-semibold">
+              <Link to="/nexus/$id" params={{ id: "new" }}><Plus className="h-4 w-4" /> Nuevo formulario</Link>
+            </Button>
+          </div>
         </header>
+        <ImportDialog open={importOpen} onOpenChange={setImportOpen}
+          onImport={(r) => { setPendingImport(r); navigate({ to: "/nexus/$id", params: { id: "new" } }); }} />
 
         {isLoading ? (
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="glass h-56 animate-pulse rounded-2xl" />)}</div>
@@ -68,7 +80,7 @@ function AdminList() {
         ) : (
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             {data.map((f) => {
-              const p = getPalette(f.theme.palette);
+              const p = resolvePalette(f.theme);
               return (
                 <div key={f.id} className="glass group relative overflow-hidden rounded-2xl p-5 transition-all hover:-translate-y-1 hover:border-primary/40">
                   <div className="absolute inset-x-0 top-0 h-1" style={{ background: `linear-gradient(90deg, ${p.primary}, ${p.secondary})` }} />

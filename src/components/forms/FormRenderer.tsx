@@ -1,7 +1,9 @@
 import { useMemo, useState, type CSSProperties, type MouseEvent } from "react";
 import { Check, Loader2, Sparkles } from "lucide-react";
 import { FormBackground } from "./FormBackground";
-import { getFont, getPalette, isAnswered, missingRequired, type FormRecord } from "@/lib/forms";
+import { LinkifiedText } from "./LinkifiedText";
+import { ReferenceImage } from "./ReferenceImage";
+import { OTHER_LABEL, OTHER_OPTION, getFont, isAnswered, missingRequired, resolveAnswers, resolvePalette, type FormRecord } from "@/lib/forms";
 import { sfx } from "@/lib/sound";
 
 type Answers = Record<string, string | string[]>;
@@ -13,9 +15,10 @@ interface Props {
 }
 
 export function FormRenderer({ form, preview, onSubmit }: Props) {
-  const palette = getPalette(form.theme.palette);
+  const palette = resolvePalette(form.theme);
   const font = getFont(form.theme.font);
   const [answers, setAnswers] = useState<Answers>({});
+  const [otherText, setOtherText] = useState<Record<string, string>>({});
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,11 +30,9 @@ export function FormRenderer({ form, preview, onSubmit }: Props) {
     "--f-font": font.css, "--f-glow": form.theme.glow,
   } as CSSProperties;
 
+  const resolved = useMemo(() => resolveAnswers(form.components, answers, otherText), [form.components, answers, otherText]);
   const questions = form.components.filter((c) => c.type !== "text");
-  const progress = useMemo(() => {
-    if (!questions.length) return 0;
-    return questions.filter((c) => isAnswered(c, answers[c.id])).length / questions.length;
-  }, [answers, questions]);
+  const progress = questions.length ? questions.filter((c) => isAnswered(c, resolved[c.id])).length / questions.length : 0;
 
   const ripple = (e: MouseEvent<HTMLButtonElement>) => {
     const el = e.currentTarget;
@@ -55,12 +56,14 @@ export function FormRenderer({ form, preview, onSubmit }: Props) {
   };
 
   const submit = async () => {
-    const missing = missingRequired(form.components, answers);
+    const emptyOther = form.components.filter((c) => Array.isArray(answers[c.id]) && (answers[c.id] as string[]).includes(OTHER_OPTION) && !(otherText[c.id] ?? "").trim());
+    if (emptyOther.length) { setError(`Explicá tu respuesta en "Otro": ${emptyOther.map((m) => m.title).join(", ")}`); play("deselect"); return; }
+    const missing = missingRequired(form.components, resolved);
     if (missing.length) { setError(`Faltan respuestas obligatorias: ${missing.map((m) => m.title).join(", ")}`); play("deselect"); return; }
     setError(null);
     if (preview || !onSubmit) { play("submit"); setDone(true); return; }
     setSending(true);
-    try { await onSubmit(answers); play("submit"); setDone(true); }
+    try { await onSubmit(resolved); play("submit"); setDone(true); }
     catch { setError("No pudimos enviar el formulario. Intentá nuevamente."); }
     finally { setSending(false); }
   };
@@ -105,7 +108,8 @@ export function FormRenderer({ form, preview, onSubmit }: Props) {
                   return (
                     <section key={c.id} className="anim-rise px-2 py-4" style={delay}>
                       {c.title && <h3 className="f-accent mb-3 text-sm uppercase tracking-[0.25em]">{c.title}</h3>}
-                      <p className="f-body whitespace-pre-wrap text-lg leading-relaxed" style={{ opacity: 0.88 }}>{c.body}</p>
+                      <p className="f-body whitespace-pre-wrap text-lg leading-relaxed" style={{ opacity: 0.88 }}><LinkifiedText text={c.body ?? ""} /></p>
+                      {c.referenceImage && <ReferenceImage src={c.referenceImage} />}
                     </section>
                   );
                 }
@@ -133,7 +137,7 @@ export function FormRenderer({ form, preview, onSubmit }: Props) {
                       <>
                         {c.multiple && <p className="f-muted f-body -mt-2 mb-4 text-xs uppercase tracking-widest">Podés elegir varias</p>}
                         <div className="grid gap-3 sm:grid-cols-2">
-                          {(c.options ?? []).map((opt) => {
+                          {[...(c.options ?? []), ...(c.allowOther ? [OTHER_OPTION] : [])].map((opt) => {
                             const on = Array.isArray(answers[c.id]) && (answers[c.id] as string[]).includes(opt);
                             return (
                               <button key={opt} type="button" data-on={on} className="f-chip f-body flex items-center gap-3"
@@ -141,13 +145,19 @@ export function FormRenderer({ form, preview, onSubmit }: Props) {
                                 <span className={`f-dot flex h-5 w-5 shrink-0 items-center justify-center transition-all ${c.multiple ? "rounded-md" : "rounded-full"}`}>
                                   {on && <Check className="h-3 w-3" style={{ color: palette.bg }} />}
                                 </span>
-                                <span>{opt}</span>
+                                <span>{opt === OTHER_OPTION ? OTHER_LABEL : opt}</span>
                               </button>
                             );
                           })}
                         </div>
+                        {c.allowOther && Array.isArray(answers[c.id]) && (answers[c.id] as string[]).includes(OTHER_OPTION) && (
+                          <textarea rows={2} autoFocus className="f-input f-body anim-rise mt-3 resize-y" placeholder="Contanos tu respuesta…"
+                            value={otherText[c.id] ?? ""} onKeyDown={() => play("tick")}
+                            onChange={(e) => setOtherText((o) => ({ ...o, [c.id]: e.target.value }))} />
+                        )}
                       </>
                     )}
+                    {c.referenceImage && <ReferenceImage src={c.referenceImage} />}
                   </section>
                 );
               })}

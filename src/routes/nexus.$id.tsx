@@ -1,11 +1,16 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckSquare, Copy, ExternalLink, ImagePlus, Inbox, ListChecks, Loader2, MessageSquareText, Plus, Rocket, Save, Trash2, Type, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, CheckSquare, Copy, Download, ExternalLink, FileUp, ImagePlus, Inbox, ListChecks, Loader2, MessageSquareText, Plus, Rocket, Save, Trash2, Type, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { BACKGROUNDS, DEFAULT_THEME, FONTS, PALETTES, makeSlug, newComponent, normalizeForm, type ComponentType, type FormComponent, type FormTheme } from "@/lib/forms";
+import { BACKGROUNDS, DEFAULT_THEME, FONTS, OTHER_LABEL, PALETTES, makeSlug, newComponent, normalizeForm, type ComponentType, type FormComponent, type FormTheme } from "@/lib/forms";
+import { downloadCsv, formToCsv, normalizeKey, takePendingImport, type ImportResult } from "@/lib/form-import";
+import { resizeImage } from "@/lib/image";
 import { FormRenderer } from "@/components/forms/FormRenderer";
+import { ImportDialog, type ImportMode } from "@/components/forms/ImportDialog";
+import { CustomPaletteEditor } from "@/components/forms/editor/CustomPaletteEditor";
+import { ReferenceImageField } from "@/components/forms/editor/ReferenceImageField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,20 +35,15 @@ interface Draft {
 }
 const EMPTY: Draft = { client_name: "", title: "Validación de alcance del proyecto", subtitle: "Respondé estas preguntas para confirmar juntos el alcance.", logo_url: null, logo_size: 120, theme: DEFAULT_THEME, components: [newComponent("text"), newComponent("question"), newComponent("choice")] };
 
-function resizeImage(file: File): Promise<string> {
-  return new Promise((res, rej) => {
-    const img = new Image();
-    img.onload = () => {
-      const max = 800;
-      const k = Math.min(1, max / Math.max(img.width, img.height));
-      const c = document.createElement("canvas");
-      c.width = img.width * k; c.height = img.height * k;
-      c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
-      res(c.toDataURL("image/png"));
-    };
-    img.onerror = rej;
-    img.src = URL.createObjectURL(file);
-  });
+/** Merges an imported questionnaire into the draft. */
+function applyImport(d: Draft, r: ImportResult, mode: ImportMode): Draft {
+  return {
+    ...d,
+    title: r.title || d.title,
+    subtitle: r.subtitle ?? d.subtitle,
+    client_name: r.client_name || d.client_name,
+    components: mode === "append" ? [...d.components, ...r.components] : r.components,
+  };
 }
 
 function Editor() {
@@ -56,7 +56,15 @@ function Editor() {
   const [slug, setSlug] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const loaded = useRef(false);
+
+  // Questionnaire imported from the forms list.
+  useEffect(() => {
+    if (!isNew) return;
+    const pending = takePendingImport();
+    if (pending) { setDraft((d) => applyImport(d, pending, "replace")); toast.success(`${pending.components.length} bloques importados. Revisá y tocá CREAR.`); }
+  }, [isNew]);
 
   const { data: form } = useQuery({
     queryKey: ["form", id], enabled: !isNew,
@@ -140,7 +148,16 @@ function Editor() {
               <Field label="Subtítulo"><Textarea rows={2} value={draft.subtitle} onChange={(e) => set("subtitle", e.target.value)} /></Field>
 
               <div className="space-y-3">
-                <SectionTitle>Bloques</SectionTitle>
+                <div className="flex items-center justify-between gap-2">
+                  <SectionTitle>Bloques</SectionTitle>
+                  <div className="flex gap-1.5">
+                    <Button size="sm" variant="secondary" className="h-7 text-xs" onClick={() => setImportOpen(true)}><FileUp className="h-3.5 w-3.5" /> Importar</Button>
+                    <Button size="sm" variant="secondary" className="h-7 text-xs" title="Descargar este cuestionario como planilla (CSV)"
+                      onClick={() => downloadCsv(`${normalizeKey(draft.title).replace(/ /g, "-") || "cuestionario"}.csv`, formToCsv(draft))}>
+                      <Download className="h-3.5 w-3.5" /> Exportar
+                    </Button>
+                  </div>
+                </div>
                 {draft.components.map((c, i) => (
                   <CompEditor key={c.id} c={c} first={i === 0} last={i === draft.components.length - 1}
                     onChange={(p) => updateComp(c.id, p)} onRemove={() => removeComp(c.id)} onMove={(d) => move(i, d)} />
@@ -187,6 +204,7 @@ function Editor() {
                     </button>
                   ))}
                 </div>
+                <CustomPaletteEditor theme={draft.theme} onChange={setTheme} />
               </div>
 
               <div className="space-y-3">
@@ -234,6 +252,9 @@ function Editor() {
           <div className="-mt-8 min-h-full"><FormRenderer form={draft} preview /></div>
         </main>
       </Tabs>
+
+      <ImportDialog open={importOpen} onOpenChange={setImportOpen} allowAppend
+        onImport={(r, mode) => { setDraft((d) => applyImport(d, r, mode)); toast.success(`${r.components.length} bloques importados`); }} />
 
       <Dialog open={shareOpen} onOpenChange={setShareOpen}>
         <DialogContent className="glass">
@@ -295,9 +316,11 @@ function CompEditor({ c, first, last, onChange, onRemove, onMove }: { c: FormCom
             ))}
             <Button size="sm" variant="secondary" className="w-full" onClick={() => onChange({ options: [...(c.options ?? []), `Opción ${(c.options?.length ?? 0) + 1}`] })}><Plus className="h-3.5 w-3.5" /> Agregar opción</Button>
             <Toggle label="Permitir varias respuestas" checked={!!c.multiple} onChange={(v) => onChange({ multiple: v })} />
+            <Toggle label={`Agregar opción "${OTHER_LABEL}"`} checked={!!c.allowOther} onChange={(v) => onChange({ allowOther: v })} />
           </>
         )}
         {c.type !== "text" && <Toggle label="Obligatoria" checked={!!c.required} onChange={(v) => onChange({ required: v })} />}
+        <ReferenceImageField value={c.referenceImage} onChange={(v) => onChange({ referenceImage: v })} />
       </div>
     </div>
   );

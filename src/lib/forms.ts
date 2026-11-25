@@ -9,7 +9,11 @@ export interface FormComponent {
   multiline?: boolean;
   options?: string[];
   multiple?: boolean;
+  /** Choice: adds an "Otro – explicar" option with a free-text field. */
+  allowOther?: boolean;
   required?: boolean;
+  /** Reference photo (data URL or https URL) shown in a collapsible panel. */
+  referenceImage?: string | undefined;
 }
 
 export interface Palette {
@@ -23,8 +27,12 @@ export interface Palette {
   muted: string;
 }
 
+export type PaletteColors = Omit<Palette, "id" | "name">;
+
 export interface FormTheme {
   palette: string;
+  /** Colors used when palette === CUSTOM_PALETTE_ID. */
+  customPalette?: PaletteColors;
   font: string;
   background: "grid" | "aurora" | "particles" | "waves";
   sound: boolean;
@@ -76,9 +84,32 @@ export const BACKGROUNDS: { id: FormTheme["background"]; name: string }[] = [
 
 export const DEFAULT_THEME: FormTheme = { palette: "neon", font: "Orbitron", background: "grid", sound: true, glow: 70 };
 
+export const CUSTOM_PALETTE_ID = "custom";
+
+export const PALETTE_COLOR_FIELDS: { key: keyof PaletteColors; label: string }[] = [
+  { key: "bg", label: "Fondo" },
+  { key: "surface", label: "Tarjetas" },
+  { key: "primary", label: "Principal" },
+  { key: "secondary", label: "Secundario" },
+  { key: "text", label: "Texto" },
+  { key: "muted", label: "Texto suave" },
+];
+
 export function getPalette(id: string) {
   return PALETTES.find((p) => p.id === id) ?? PALETTES[0]!;
 }
+
+/** Resolves the theme's palette, including a user-defined custom one. */
+export function resolvePalette(theme: Pick<FormTheme, "palette" | "customPalette">): Palette {
+  if (theme.palette === CUSTOM_PALETTE_ID && theme.customPalette) {
+    return { id: CUSTOM_PALETTE_ID, name: "Personalizada", ...theme.customPalette };
+  }
+  return getPalette(theme.palette);
+}
+
+/** Sentinel stored while the respondent has "Otro" selected. */
+export const OTHER_OPTION = "__other__";
+export const OTHER_LABEL = "Otro – explicar";
 export function getFont(id: string) {
   return FONTS.find((f) => f.id === id) ?? FONTS[0]!;
 }
@@ -114,6 +145,22 @@ export function isAnswered(c: FormComponent, v: unknown): boolean {
   if (c.type === "text") return true;
   if (c.type === "question") return typeof v === "string" && v.trim().length > 0;
   return Array.isArray(v) && v.length > 0;
+}
+
+/** Replaces the "Otro" sentinel with "Otro: <texto>" (or drops it when empty). */
+export function resolveAnswers(
+  components: FormComponent[],
+  answers: Record<string, string | string[]>,
+  otherText: Record<string, string>,
+): Record<string, string | string[]> {
+  const out = { ...answers };
+  for (const c of components) {
+    const v = out[c.id];
+    if (c.type !== "choice" || !Array.isArray(v) || !v.includes(OTHER_OPTION)) continue;
+    const txt = (otherText[c.id] ?? "").trim();
+    out[c.id] = v.flatMap((o) => (o !== OTHER_OPTION ? [o] : txt ? [`Otro: ${txt}`] : []));
+  }
+  return out;
 }
 
 export function missingRequired(components: FormComponent[], answers: Record<string, unknown>): FormComponent[] {
